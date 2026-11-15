@@ -21,36 +21,46 @@ HTTP_MAX=399
 URLS=()
 SERVICES=()
 
+# Logging function
 log() {
     local level="$1" message
     shift
+
     message="$(date '+%F %T%z') [$level] $*"
     printf '%s\n' "$message" >&2
+
+    # Write data to log file
     if (( LOG_READY )); then
         printf '%s\n' "$message" >> "$LOG_FILE"
     fi
 }
 
+# If verbose mode enable call log() with INFO Level
+# expected Logmessage as parameter
 debug() {
     if (( VERBOSE )); then log INFO "$*"; fi
 }
 
+# If operation failed
+# expected error message as parameter
 fail() {
     log ERROR "$*"
     exit 1
 }
 
+# Print help info
 usage() {
     cat <<EOF_HELP
 Usage: $SCRIPT_NAME [-c FILE] [-v] [-n] [-r] [-h]
-  -c FILE  Select a trusted SiteWatch config file
-  -v       Show details for each DNS, TCP and HTTP check
-  -n       Dry-run: validate/list targets without checking or writing files
-  -r       Print uptime report from previous CSV checks (no new checks)
-  -h       Show this help
+-c FILE  Select a trusted SiteWatch config file
+-v       Show details for each DNS, TCP and HTTP check
+-n       Dry-run: validate/list targets without checking or writing files
+-r       Print uptime report from previous CSV checks (no new checks)
+-h       Show this help
 EOF_HELP
 }
 
+# Check if command available in system
 check_deps() {
     local cmd
     for cmd in "$@"; do
@@ -62,32 +72,44 @@ trim() {
     printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
+# Check if port valid
+# First, check if port contains 1-5 digits
+# Then, check if it in range of 1 and 65535
 valid_port() {
     local port="$1"
     [[ "$port" =~ ^[0-9]{1,5}$ ]] || return 1
     (( 10#$port >= 1 && 10#$port <= 65535 ))
 }
 
+# Check if URL match the format
 parse_url() {
     local url="$1" scheme
     if [[ "$url" =~ ^(https?)://([A-Za-z0-9._-]+)(:([0-9]{1,5}))?([/?#].*)?$ ]]; then
-        scheme="${BASH_REMATCH[1]}"
-        URL_HOST="${BASH_REMATCH[2]}"
-        URL_PORT="${BASH_REMATCH[4]:-}"
+        scheme="${BASH_REMATCH[1]}"     # http or https
+        URL_HOST="${BASH_REMATCH[2]}"   # host name ex. example.com
+        URL_PORT="${BASH_REMATCH[4]:-}" # port ex. 8080
+        
+        # if port not found, assign default port
         if [[ -z "$URL_PORT" ]]; then
             if [[ "$scheme" == https ]]; then URL_PORT=443; else URL_PORT=80; fi
         fi
+
+        # check if port valid
         valid_port "$URL_PORT"
+        
+        # return success
         return $?
     fi
     return 1
 }
 
+# Check if Service match the format
 parse_service() {
     local service="$1"
     if [[ "$service" =~ ^([A-Za-z0-9._-]+):([0-9]{1,5})$ ]]; then
         SERVICE_HOST="${BASH_REMATCH[1]}"
         SERVICE_PORT="${BASH_REMATCH[2]}"
+
         valid_port "$SERVICE_PORT"
         return $?
     fi
@@ -100,6 +122,7 @@ load_config() {
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 
+    # Check data in config file
     [[ "$(declare -p URLS 2>/dev/null || :)" == 'declare -a '* ]] || fail 'URLS must be a Bash array'
     [[ "$(declare -p SERVICES 2>/dev/null || :)" == 'declare -a '* ]] || fail 'SERVICES must be a Bash array'
     [[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail 'TIMEOUT must be a positive integer'
@@ -123,6 +146,7 @@ load_config() {
     done
 }
 
+# Check DNS Resolve using getent
 check_dns() {
     local host="$1"
     DNS_STATUS=FAIL
@@ -271,14 +295,18 @@ main() {
     (( $# == 0 )) || { usage >&2; exit 2; }
     (( ! (DRY_RUN && REPORT_ONLY) )) || { usage >&2; exit 2; }
 
+    # Check if command available
     check_deps date sed awk curl getent nc
+    # load config file
     load_config
 
+    # Dry run mode
     if (( DRY_RUN )); then
         for target in "${URLS[@]}"; do log INFO "[dry-run] URL $(trim "$target")"; done
         for target in "${SERVICES[@]}"; do log INFO "[dry-run] SERVICE $(trim "$target")"; done
         return 0
     fi
+
     if (( REPORT_ONLY )); then
         calculate_uptime
         return 0

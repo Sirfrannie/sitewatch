@@ -10,16 +10,19 @@ if (( EUID != 0 )); then
     printf 'ERROR: use sudo bash uninstall.sh\n' >&2
     exit 1
 fi
+
 KEEP_DATA=0
 if (( $# > 1 )); then
     printf 'Usage: sudo bash uninstall.sh [--keep-data]\n' >&2
     exit 2
 fi
+
 if (( $# == 1 )); then
     if [[ "$1" == --keep-data ]]; then KEEP_DATA=1
     else printf 'Usage: sudo bash uninstall.sh [--keep-data]\n' >&2; exit 2
     fi
 fi
+
 systemctl disable --now sitewatch.timer 2>/dev/null || true
 systemctl stop sitewatch.service 2>/dev/null || true
 rm -f /etc/systemd/system/sitewatch.service /etc/systemd/system/sitewatch.timer
