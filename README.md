@@ -32,6 +32,28 @@ sudo apt update
 sudo apt install -y curl netcat-openbsd shellcheck git python3
 ```
 
+
+## Install, schedule and uninstall
+
+Run Install script
+```bash
+sudo bash install.sh
+sudo systemctl start sitewatch.service
+```
+Check timer and Journalctl
+```bash
+systemctl list-timers --all | grep sitewatch
+sudo journalctl -u sitewatch.service -n 30 --no-pager
+sudo bash /usr/local/lib/sitewatch/bin/sitewatch.sh -r -c /etc/sitewatch/sitewatch.conf
+sudo cat /var/lib/sitewatch/results.csv
+```
+Uninstall 
+```bash
+sudo bash uninstall.sh --keep-data
+```
+--keep-data is optional for not delete the log data
+
+
 ## Configuration
 
 Edit `config/sitewatch.conf` before installation or `/etc/sitewatch/sitewatch.conf` afterwards. It is **trusted Bash syntax** loaded with `source`, so do not accept arbitrary config files from other users.
@@ -75,16 +97,6 @@ python3 -m http.server 8000 --bind 127.0.0.1
 
 Run SiteWatch with `-v`, stop the server with Ctrl+C, run again (DOWN and WARN ALERT), run once more (no duplicate alert), restart the server and run again (UP and INFO RECOVERY). `state.tsv` records current status. `results.csv` saves timestamp, type, target, DNS, TCP, HTTP code, response seconds, and status. Uptime = 100 × UP checks / total checks (**sampled uptime**, not continuously measured).
 
-## Install, schedule and uninstall
-
-```bash
-sudo bash install.sh
-sudo systemctl start sitewatch.service
-systemctl list-timers --all | grep sitewatch
-sudo journalctl -u sitewatch.service -n 30 --no-pager
-sudo bash /usr/local/lib/sitewatch/bin/sitewatch.sh -r -c /etc/sitewatch/sitewatch.conf
-sudo cat /var/lib/sitewatch/results.csv
-```
 
 The systemd oneshot runs every **3 minutes after a completed run**; `Deactivated successfully` is normal. The installer can be rerun and preserves existing config. To demonstrate a service error, temporarily move `/etc/sitewatch/sitewatch.conf`, start the service, check its status, then restore the file and reset failed state.
 
